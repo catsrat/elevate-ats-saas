@@ -68,14 +68,23 @@ export default function Home() {
 
     // Load PDF.js and HTML2PDF dynamically
     const loadScripts = async () => {
-      if (typeof window !== "undefined" && !window.html2pdf) {
-        const script1 = document.createElement("script");
-        script1.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
-        document.body.appendChild(script1);
+      if (typeof window !== "undefined") {
+        if (!window.html2pdf) {
+          const script1 = document.createElement("script");
+          script1.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+          document.body.appendChild(script1);
+        }
         
-        const script2 = document.createElement("script");
-        script2.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-        document.body.appendChild(script2);
+        if (!window.pdfjsLib) {
+          const script2 = document.createElement("script");
+          script2.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+          script2.onload = () => {
+             if (window.pdfjsLib) {
+               window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+             }
+          };
+          document.body.appendChild(script2);
+        }
       }
     };
     loadScripts();
@@ -245,8 +254,22 @@ export default function Home() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (file) processFile(file);
+  };
 
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const processFile = async (file: File) => {
     if (file.type === "text/plain") {
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -255,6 +278,10 @@ export default function Home() {
       };
       reader.readAsText(file);
     } else if (file.type === "application/pdf") {
+      if (!window.pdfjsLib) {
+        showStatus("Loading PDF library... please try again in a second.", "error");
+        return;
+      }
       const reader = new FileReader();
       reader.onload = async (ev) => {
         try {
@@ -316,7 +343,12 @@ export default function Home() {
             </div>
             <p className="subtitle">Paste your master resume content here.</p>
             
-            <div id="resumeDropzone" className="dropzone">
+            <div 
+              id="resumeDropzone" 
+              className="dropzone"
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
               <input type="file" onChange={handleFileUpload} accept=".txt,.pdf" className="hidden-input" id="resumeFileInput" />
               <div className="dropzone-content">
                 <UploadCloud size={32} />
