@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
+import { GoogleGenAI } from "@google/genai";
 
 export async function POST(req: Request) {
   try {
+    if (!process.env.GEMINI_API_KEY) {
+      return NextResponse.json({ error: "GEMINI_API_KEY not configured" }, { status: 500 });
+    }
+
     const formData = await req.formData();
     const file = formData.get("file") as File;
 
@@ -10,25 +15,44 @@ export async function POST(req: Request) {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const base64Data = Buffer.from(arrayBuffer).toString("base64");
 
-    // Use the internal module path to avoid the known Next.js production bug
-    // where pdf-parse tries to read a non-existent test file
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require("pdf-parse/lib/pdf-parse.js");
-    const data = await pdfParse(buffer);
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-    if (!data.text?.trim()) {
+    // Use Gemini's multimodal capability to extract text from PDF
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                mimeType: "application/pdf",
+                data: base64Data,
+              },
+            },
+            {
+              text: "Extract all text content from this PDF resume. Return ONLY the raw text as it appears in the document, preserving the structure (headings, job titles, bullet points, dates, etc.). Do not add any commentary or formatting. Just output the text.",
+            },
+          ],
+        },
+      ],
+    });
+
+    const extractedText = response.text?.trim();
+
+    if (!extractedText) {
       return NextResponse.json({
-        error: "No text found in this PDF. It might be a scanned image or encrypted.",
+        error: "Could not extract text from this PDF.",
       }, { status: 422 });
     }
 
-    return NextResponse.json({ text: data.text.trim() });
+    return NextResponse.json({ text: extractedText });
   } catch (error: any) {
-    console.error("PDF Parsing Error:", error?.message);
+    console.error("PDF Extraction Error:", error?.message);
     return NextResponse.json({
-      error: "Failed to read PDF: " + (error?.message || "Unknown error"),
+      error: "Failed to process PDF: " + (error?.message || "Unknown error"),
     }, { status: 500 });
   }
 }
