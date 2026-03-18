@@ -284,38 +284,43 @@ export default function Home() {
     } else if (file.type === "application/pdf") {
       if (!window.pdfjsLib) {
         console.warn("pdfjsLib not yet loaded.");
-        showStatus("Loading PDF library... please try again in a few seconds.", "error");
+        showStatus("Loading PDF engine... please try again in a few seconds.", "error");
         return;
       }
       
-      // Ensure worker is set before running
-      if (window.pdfjsLib && !window.pdfjsLib.GlobalWorkerOptions.workerSrc) {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-      }
+      // Force worker path just in case
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
-      showStatus("Reading PDF contents...", "success");
+      showStatus("Analyzing PDF text...", "success");
       const reader = new FileReader();
       reader.onload = async (ev) => {
         try {
           console.log("PDF file read as ArrayBuffer, starting parse...");
           const typedarray = new Uint8Array(ev.target?.result as ArrayBuffer);
-          const pdfData = await window.pdfjsLib.getDocument(typedarray).promise;
+          const loadingTask = window.pdfjsLib.getDocument(typedarray);
+          const pdfData = await loadingTask.promise;
           console.log("PDF document loaded, pages:", pdfData.numPages);
           let fullText = "";
           
           for (let i = 1; i <= pdfData.numPages; i++) {
             const page = await pdfData.getPage(i);
             const textContent = await page.getTextContent();
-            const pageText = textContent.items.map((item: any) => item.str).join(" ");
-            fullText += pageText + "\n";
-            console.log(`Page ${i} parsed.`);
+            // PDF.js text items can be scattered, join them with spaces
+            const pageText = textContent.items
+              .map((item: any) => item.str)
+              .filter((s: string) => s.trim().length > 0)
+              .join(" ");
+            
+            fullText += pageText + "\n\n";
+            console.log(`Page ${i} extracted ${pageText.length} characters.`);
           }
           
-          if (!fullText.trim()) {
-            throw new Error("PDF seems empty or consists only of images. Please try pasting text.");
+          if (fullText.trim().length < 10) {
+            console.warn("Extracted text is too short:", fullText);
+            throw new Error("PDF seems to be an image or scanned document. Please try pasting text instead.");
           }
 
-          setBaseResume(fullText);
+          setBaseResume(fullText.trim());
           console.log("Full text extracted successfully.");
           showStatus("PDF parsed successfully!", "success");
         } catch (err: any) {
