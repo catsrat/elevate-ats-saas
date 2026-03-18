@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import * as pdfjs from "pdfjs-dist";
 
-// Use the bundled worker
-import "pdfjs-dist/build/pdf.worker.entry";
+// Use the cdn for worker in the API route
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
 export async function POST(req: Request) {
   try {
