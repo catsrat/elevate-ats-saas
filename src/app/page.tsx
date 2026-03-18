@@ -12,7 +12,6 @@ import { marked } from "marked";
 declare global {
   interface Window {
     html2pdf: any;
-    pdfjsLib: any;
   }
 }
 
@@ -66,26 +65,13 @@ export default function Home() {
       fetchCredits();
     }
 
-    // Load PDF.js and HTML2PDF dynamically
+    // Load HTML2PDF dynamically
     const loadScripts = async () => {
       if (typeof window !== "undefined") {
         if (!window.html2pdf) {
           const script1 = document.createElement("script");
           script1.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
           document.body.appendChild(script1);
-        }
-        
-        if (!window.pdfjsLib) {
-          console.log("Loading PDF.js v2.16.105...");
-          const script2 = document.createElement("script");
-          script2.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js";
-          script2.onload = () => {
-             console.log("PDF.js v2.16 loaded.");
-             if (window.pdfjsLib) {
-               window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`;
-             }
-          };
-          document.body.appendChild(script2);
         }
       }
     };
@@ -281,71 +267,29 @@ export default function Home() {
       };
       reader.readAsText(file);
     } else if (file.type === "application/pdf") {
-      if (!window.pdfjsLib) {
-        console.error("PDF engine (pdfjsLib) not found on window object.");
-        showStatus("PDF engine still loading... please wait 3 seconds and try again.", "error");
-        return;
-      }
+      showStatus("Analyzing PDF on server...", "success");
       
-      // Refresh worker path
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`;
+      const formData = new FormData();
+      formData.append("file", file);
 
-      showStatus("Reconstructing PDF text...", "success");
-      const reader = new FileReader();
-      reader.onload = async (ev) => {
-        try {
-          console.log("PDF extraction pipeline v2 started.");
-          const typedarray = new Uint8Array(ev.target?.result as ArrayBuffer);
-          const pdfDoc = await window.pdfjsLib.getDocument(typedarray).promise;
-          console.log("PDF opened, pages:", pdfDoc.numPages);
-          
-          let fullText = "";
-          
-          for (let i = 1; i <= pdfDoc.numPages; i++) {
-            const page = await pdfDoc.getPage(i);
-            const textContent = await page.getTextContent();
-            
-            // Collect all strings, even tiny fragments
-            const strings = textContent.items.map((item: any) => item.str || "");
-            const pageLines: string[] = [];
-            let currentLine = "";
-            let lastY = -1;
+      try {
+        const response = await fetch("/api/parse-pdf", {
+          method: "POST",
+          body: formData,
+        });
 
-            // Simple vertical-grouping for better line reconstruction
-            textContent.items.forEach((item: any) => {
-              if (!item.str) return;
-              const y = item.transform[5];
-              if (lastY !== -1 && Math.abs(y - lastY) > 5) {
-                pageLines.push(currentLine.trim());
-                currentLine = "";
-              }
-              currentLine += item.str + " ";
-              lastY = y;
-            });
-            pageLines.push(currentLine.trim());
+        const data = await response.json();
 
-            const pageText = pageLines.filter(line => line.length > 0).join("\n");
-            fullText += pageText + "\n\n";
-            console.log(`Page ${i} reconstructed: ${pageText.length} chars.`);
-          }
-          
-          const finalOutput = fullText.trim();
-          console.log("Final extraction size:", finalOutput.length);
-
-          // Lowered threshold to 5 just to be safe
-          if (finalOutput.length < 5) {
-             throw new Error("No text found. If this is a photo of a resume, please paste the text manually.");
-          }
-
-          setBaseResume(finalOutput);
-          showStatus("Bypassed barriers; Text recovered!", "success");
-        } catch (err: any) {
-          console.error("PDF Fail:", err);
-          showStatus(err.message || "Failed to parse this PDF. Try pasting the text instead.", "error");
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to parse PDF on server.");
         }
-      };
-      reader.onerror = () => showStatus("Failed to read the file from your computer.", "error");
-      reader.readAsArrayBuffer(file);
+
+        setBaseResume(data.text);
+        showStatus("PDF parsed successfully!", "success");
+      } catch (err: any) {
+        console.error("PDF Parsing Error:", err);
+        showStatus(err.message || "Failed to parse PDF. Please try pasting text.", "error");
+      }
     } else {
       showStatus("Please upload a .TXT or .PDF file.", "error");
     }
