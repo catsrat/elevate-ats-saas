@@ -4,10 +4,21 @@ import { PrismaClient } from "@prisma/client";
 import { GoogleGenAI } from "@google/genai";
 
 const prisma = new PrismaClient();
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export async function POST(req: Request) {
   try {
+    // Validate environment variables first
+    if (!process.env.GEMINI_API_KEY) {
+      console.error("GEMINI_API_KEY is not set.");
+      return NextResponse.json({ error: "Server configuration error: Missing GEMINI_API_KEY." }, { status: 500 });
+    }
+    if (!process.env.DATABASE_URL) {
+      console.error("DATABASE_URL is not set.");
+      return NextResponse.json({ error: "Server configuration error: Missing DATABASE_URL." }, { status: 500 });
+    }
+
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -22,13 +33,11 @@ export async function POST(req: Request) {
     // 1. Get or Create User
     let user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
-      // Get email from clerk if possible, or just placeholder for now
-      // This is safe since clerk ID is unique
       user = await prisma.user.create({
         data: {
           id: userId,
-          email: `${userId}@placeholder.com`, // We would actually use a Clerk webhook to sync this normally
-          credits: 1, // First one is free!
+          email: `${userId}@placeholder.com`,
+          credits: 1,
         }
       });
     }
@@ -69,7 +78,7 @@ export async function POST(req: Request) {
     const data = JSON.parse(resultText);
 
     // 4. Save to Database
-    const savedResume = await prisma.resume.create({
+    await prisma.resume.create({
       data: {
         userId: user.id,
         baseResume,
@@ -91,7 +100,9 @@ export async function POST(req: Request) {
     return NextResponse.json(data);
 
   } catch (error: any) {
-    console.error("API Error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("Generate API Error:", error?.message, error?.stack);
+    return NextResponse.json({ 
+      error: error?.message || "Internal server error" 
+    }, { status: 500 });
   }
 }
