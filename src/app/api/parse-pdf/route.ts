@@ -1,11 +1,5 @@
 import { NextResponse } from "next/server";
-
-// Must use the legacy build in Node.js environments (no DOMMatrix)
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
-
-// Disable the worker entirely for server-side Node.js
-pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+import pdfParse from "pdf-parse";
 
 export async function POST(req: Request) {
   try {
@@ -17,33 +11,17 @@ export async function POST(req: Request) {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
+    const buffer = Buffer.from(arrayBuffer);
 
-    const loadingTask = pdfjsLib.getDocument({
-      data: uint8Array,
-      disableStream: true,
-      disableAutoFetch: true,
-    });
+    const data = await pdfParse(buffer);
 
-    const pdf = await loadingTask.promise;
-    let fullText = "";
-
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => item.str || "")
-        .join(" ");
-      fullText += pageText + "\n\n";
-    }
-
-    if (!fullText.trim()) {
+    if (!data.text?.trim()) {
       return NextResponse.json({
-        error: "No text found in this PDF. It might be a scanned image or encrypted documents.",
+        error: "No text found in this PDF. It might be a scanned image or encrypted.",
       }, { status: 422 });
     }
 
-    return NextResponse.json({ text: fullText.trim() });
+    return NextResponse.json({ text: data.text.trim() });
   } catch (error: any) {
     console.error("PDF Parsing Error:", error);
     return NextResponse.json({

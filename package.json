@@ -16,7 +16,7 @@
     "lucide-react": "^0.577.0",
     "marked": "^17.0.4",
     "next": "16.1.7",
-    "pdfjs-dist": "^5.5.207",
+    "pdf-parse": "^1.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "stripe": "^20.4.1"
@@ -28,6 +28,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.7",
+    "@types/pdf-parse": "^1.1.4",
     "prisma": "^5.22.0",
     "tailwindcss": "^4",
     "typescript": "^5"
