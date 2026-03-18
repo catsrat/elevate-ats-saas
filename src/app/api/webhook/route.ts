@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 const prisma = new PrismaClient();
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -16,6 +16,9 @@ export async function POST(req: Request) {
   let event: Stripe.Event;
 
   try {
+    if (!stripe) {
+      throw new Error("Stripe is not configured.");
+    }
     if (!endpointSecret) {
       console.warn("⚠️  STRIPE_WEBHOOK_SECRET is NOT set. Skipping signature verification in dev mode.");
       event = JSON.parse(body);
@@ -47,9 +50,3 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ received: true });
 }
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
