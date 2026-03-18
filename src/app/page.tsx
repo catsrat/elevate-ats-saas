@@ -283,54 +283,68 @@ export default function Home() {
       reader.readAsText(file);
     } else if (file.type === "application/pdf") {
       if (!window.pdfjsLib) {
-        console.warn("pdfjsLib not yet loaded.");
-        showStatus("Loading PDF engine... please try again in a few seconds.", "error");
+        console.error("PDF engine (pdfjsLib) not found on window object.");
+        showStatus("PDF engine still loading... please wait 3 seconds and try again.", "error");
         return;
       }
       
-      // Force worker path just in case
+      // Force worker path
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
-      showStatus("Analyzing PDF text...", "success");
+      showStatus("Analyzing PDF structure...", "success");
       const reader = new FileReader();
       reader.onload = async (ev) => {
         try {
-          console.log("PDF file read as ArrayBuffer, starting parse...");
+          console.log("Starting PDF extraction pipeline...");
           const typedarray = new Uint8Array(ev.target?.result as ArrayBuffer);
-          const loadingTask = window.pdfjsLib.getDocument(typedarray);
-          const pdfData = await loadingTask.promise;
-          console.log("PDF document loaded, pages:", pdfData.numPages);
-          let fullText = "";
+          const loadingTask = window.pdfjsLib.getDocument({
+            data: typedarray,
+            disableFontFace: false,
+            verbosity: 0
+          });
           
-          for (let i = 1; i <= pdfData.numPages; i++) {
-            const page = await pdfData.getPage(i);
-            const textContent = await page.getTextContent();
-            // PDF.js text items can be scattered, join them with spaces
-            const pageText = textContent.items
-              .map((item: any) => item.str)
-              .filter((s: string) => s.trim().length > 0)
-              .join(" ");
+          const pdfDoc = await loadingTask.promise;
+          console.log(`PDF Loaded: ${pdfDoc.numPages} pages.`);
+          
+          let extractedText = "";
+          
+          for (let i = 1; i <= pdfDoc.numPages; i++) {
+            const page = await pdfDoc.getPage(i);
+            // use includeMarkedContent to catch hidden layers
+            const textContent = await page.getTextContent({ 
+              includeMarkedContent: true,
+              disableCombineTextItems: false 
+            });
             
-            fullText += pageText + "\n\n";
-            console.log(`Page ${i} extracted ${pageText.length} characters.`);
+            console.log(`Page ${i} found ${textContent.items.length} text fragments.`);
+            
+            const pageText = textContent.items
+              .map((item: any) => item.str || "")
+              .join(" ")
+              .replace(/\s+/g, " "); // Normalize spaces
+            
+            extractedText += pageText + "\n\n";
           }
           
-          if (fullText.trim().length < 10) {
-            console.warn("Extracted text is too short:", fullText);
-            throw new Error("PDF seems to be an image or scanned document. Please try pasting text instead.");
+          const finalOutput = extractedText.trim();
+          console.log(`Extraction complete. Total length: ${finalOutput.length} characters.`);
+
+          if (finalOutput.length < 20) {
+            console.warn("Extracted text too small. Sample:", finalOutput);
+            throw new Error("This PDF seems to be an image or scanned document. Please paste the text manually or use a text-based PDF.");
           }
 
-          setBaseResume(fullText.trim());
-          console.log("Full text extracted successfully.");
-          showStatus("PDF parsed successfully!", "success");
+          setBaseResume(finalOutput);
+          showStatus("PDF Contents Extracted Successfully!", "success");
         } catch (err: any) {
-          console.error("PDF parsing error:", err);
-          showStatus(err.message || "Failed to parse PDF. Is it an image PDF?", "error");
+          console.error("PDF Extraction Failed:", err);
+          showStatus(err.message || "Failed to parse PDF. Try pasting the text instead.", "error");
         }
       };
+      reader.onerror = () => showStatus("Failed to read the file from your computer.", "error");
       reader.readAsArrayBuffer(file);
     } else {
-      showStatus("Unsupported file type. Please use TXT or PDF.", "error");
+      showStatus("Please upload a .TXT or .PDF file.", "error");
     }
   };
 
