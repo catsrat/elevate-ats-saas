@@ -20,12 +20,12 @@ export async function POST(req: Request) {
       line_items: [
         {
           price_data: {
-            currency: "usd",
+            currency: "inr",
             product_data: {
               name: "Elevate ATS - Unlimited Access",
               description: "Unlock unlimited AI resume tailoring, cover letters, and interview prep.",
             },
-            unit_amount: 999, // $9.99
+            unit_amount: 84900, // ₹849
           },
           quantity: 1,
         },
