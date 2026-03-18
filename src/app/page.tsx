@@ -12,6 +12,7 @@ import { marked } from "marked";
 declare global {
   interface Window {
     html2pdf: any;
+    pdfjsLib: any;
   }
 }
 
@@ -254,7 +255,28 @@ export default function Home() {
       };
       reader.readAsText(file);
     } else if (file.type === "application/pdf") {
-       showStatus("Please paste text for now. PDF parsing being updated in React.", "error");
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        try {
+          const typedarray = new Uint8Array(ev.target?.result as ArrayBuffer);
+          const pdfData = await window.pdfjsLib.getDocument(typedarray).promise;
+          let fullText = "";
+          
+          for (let i = 1; i <= pdfData.numPages; i++) {
+            const page = await pdfData.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map((item: any) => item.str).join(" ");
+            fullText += pageText + "\n";
+          }
+          
+          setBaseResume(fullText);
+          showStatus("PDF parsed successfully!", "success");
+        } catch (err) {
+          console.error("PDF parsing error:", err);
+          showStatus("Failed to parse PDF. Please try pasting text.", "error");
+        }
+      };
+      reader.readAsArrayBuffer(file);
     }
   };
 
@@ -295,10 +317,10 @@ export default function Home() {
             <p className="subtitle">Paste your master resume content here.</p>
             
             <div id="resumeDropzone" className="dropzone">
-              <input type="file" onChange={handleFileUpload} accept=".txt" className="hidden-input" id="resumeFileInput" />
+              <input type="file" onChange={handleFileUpload} accept=".txt,.pdf" className="hidden-input" id="resumeFileInput" />
               <div className="dropzone-content">
                 <UploadCloud size={32} />
-                <p>Drag & Drop your Resume (TXT) or <label htmlFor="resumeFileInput" style={{cursor: "pointer", color: "var(--primary-accent)"}}>Browse File</label></p>
+                <p>Drag & Drop your Resume (TXT/PDF) or <label htmlFor="resumeFileInput" style={{cursor: "pointer", color: "var(--primary-accent)"}}>Browse File</label></p>
               </div>
               <textarea 
                 value={baseResume}
