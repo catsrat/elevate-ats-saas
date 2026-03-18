@@ -76,11 +76,14 @@ export default function Home() {
         }
         
         if (!window.pdfjsLib) {
+          console.log("Loading PDF.js...");
           const script2 = document.createElement("script");
           script2.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
           script2.onload = () => {
+             console.log("PDF.js loaded.");
              if (window.pdfjsLib) {
                window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+               console.log("PDF.js worker initialized.");
              }
           };
           document.body.appendChild(script2);
@@ -270,6 +273,7 @@ export default function Home() {
   };
 
   const processFile = async (file: File) => {
+    console.log("Processing file:", file.name, file.type);
     if (file.type === "text/plain") {
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -279,14 +283,24 @@ export default function Home() {
       reader.readAsText(file);
     } else if (file.type === "application/pdf") {
       if (!window.pdfjsLib) {
-        showStatus("Loading PDF library... please try again in a second.", "error");
+        console.warn("pdfjsLib not yet loaded.");
+        showStatus("Loading PDF library... please try again in a few seconds.", "error");
         return;
       }
+      
+      // Ensure worker is set before running
+      if (window.pdfjsLib && !window.pdfjsLib.GlobalWorkerOptions.workerSrc) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+      }
+
+      showStatus("Reading PDF contents...", "success");
       const reader = new FileReader();
       reader.onload = async (ev) => {
         try {
+          console.log("PDF file read as ArrayBuffer, starting parse...");
           const typedarray = new Uint8Array(ev.target?.result as ArrayBuffer);
           const pdfData = await window.pdfjsLib.getDocument(typedarray).promise;
+          console.log("PDF document loaded, pages:", pdfData.numPages);
           let fullText = "";
           
           for (let i = 1; i <= pdfData.numPages; i++) {
@@ -294,16 +308,24 @@ export default function Home() {
             const textContent = await page.getTextContent();
             const pageText = textContent.items.map((item: any) => item.str).join(" ");
             fullText += pageText + "\n";
+            console.log(`Page ${i} parsed.`);
           }
           
+          if (!fullText.trim()) {
+            throw new Error("PDF seems empty or consists only of images. Please try pasting text.");
+          }
+
           setBaseResume(fullText);
+          console.log("Full text extracted successfully.");
           showStatus("PDF parsed successfully!", "success");
-        } catch (err) {
+        } catch (err: any) {
           console.error("PDF parsing error:", err);
-          showStatus("Failed to parse PDF. Please try pasting text.", "error");
+          showStatus(err.message || "Failed to parse PDF. Is it an image PDF?", "error");
         }
       };
       reader.readAsArrayBuffer(file);
+    } else {
+      showStatus("Unsupported file type. Please use TXT or PDF.", "error");
     }
   };
 
