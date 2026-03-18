@@ -258,16 +258,8 @@ export default function Home() {
   };
 
   const processFile = async (file: File) => {
-    console.log("Processing file:", file.name, file.type);
-    if (file.type === "text/plain") {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setBaseResume(ev.target?.result as string);
-        showStatus("Text file loaded successfully.", "success");
-      };
-      reader.readAsText(file);
-    } else if (file.type === "application/pdf") {
-      showStatus("Analyzing PDF on server...", "success");
+    if (file.type === "application/pdf") {
+      showStatus("Reading your PDF...", "success");
       
       const formData = new FormData();
       formData.append("file", file);
@@ -281,17 +273,17 @@ export default function Home() {
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || "Failed to parse PDF on server.");
+          throw new Error(data.error || "Failed to parse PDF.");
         }
 
         setBaseResume(data.text);
         showStatus("PDF parsed successfully!", "success");
       } catch (err: any) {
         console.error("PDF Parsing Error:", err);
-        showStatus(err.message || "Failed to parse PDF. Please try pasting text.", "error");
+        showStatus(err.message || "Failed to parse PDF. Please try pasting text manually.", "error");
       }
     } else {
-      showStatus("Please upload a .TXT or .PDF file.", "error");
+      showStatus("Please upload a PDF file.", "error");
     }
   };
 
@@ -337,10 +329,10 @@ export default function Home() {
               onDragOver={handleDragOver}
               onDrop={handleDrop}
             >
-              <input type="file" onChange={handleFileUpload} accept=".txt,.pdf" className="hidden-input" id="resumeFileInput" />
+              <input type="file" onChange={handleFileUpload} accept=".pdf" className="hidden-input" id="resumeFileInput" />
               <div className="dropzone-content">
                 <UploadCloud size={32} />
-                <p>Drag & Drop your Resume (TXT/PDF) or <label htmlFor="resumeFileInput" style={{cursor: "pointer", color: "var(--primary-accent)"}}>Browse File</label></p>
+                <p>Drag & Drop your Resume (PDF) or <label htmlFor="resumeFileInput" style={{cursor: "pointer", color: "var(--primary-accent)"}}>Browse File</label></p>
               </div>
               <textarea 
                 value={baseResume}
