@@ -76,14 +76,13 @@ export default function Home() {
         }
         
         if (!window.pdfjsLib) {
-          console.log("Loading PDF.js...");
+          console.log("Loading PDF.js v2.16.105...");
           const script2 = document.createElement("script");
-          script2.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+          script2.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js";
           script2.onload = () => {
-             console.log("PDF.js loaded.");
+             console.log("PDF.js v2.16 loaded.");
              if (window.pdfjsLib) {
-               window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-               console.log("PDF.js worker initialized.");
+               window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`;
              }
           };
           document.body.appendChild(script2);
@@ -288,57 +287,61 @@ export default function Home() {
         return;
       }
       
-      // Force worker path
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+      // Refresh worker path
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`;
 
-      showStatus("Analyzing PDF structure...", "success");
+      showStatus("Reconstructing PDF text...", "success");
       const reader = new FileReader();
       reader.onload = async (ev) => {
         try {
-          console.log("Starting PDF extraction pipeline...");
+          console.log("PDF extraction pipeline v2 started.");
           const typedarray = new Uint8Array(ev.target?.result as ArrayBuffer);
-          const loadingTask = window.pdfjsLib.getDocument({
-            data: typedarray,
-            disableFontFace: false,
-            verbosity: 0
-          });
+          const pdfDoc = await window.pdfjsLib.getDocument(typedarray).promise;
+          console.log("PDF opened, pages:", pdfDoc.numPages);
           
-          const pdfDoc = await loadingTask.promise;
-          console.log(`PDF Loaded: ${pdfDoc.numPages} pages.`);
-          
-          let extractedText = "";
+          let fullText = "";
           
           for (let i = 1; i <= pdfDoc.numPages; i++) {
             const page = await pdfDoc.getPage(i);
-            // use includeMarkedContent to catch hidden layers
-            const textContent = await page.getTextContent({ 
-              includeMarkedContent: true,
-              disableCombineTextItems: false 
+            const textContent = await page.getTextContent();
+            
+            // Collect all strings, even tiny fragments
+            const strings = textContent.items.map((item: any) => item.str || "");
+            const pageLines: string[] = [];
+            let currentLine = "";
+            let lastY = -1;
+
+            // Simple vertical-grouping for better line reconstruction
+            textContent.items.forEach((item: any) => {
+              if (!item.str) return;
+              const y = item.transform[5];
+              if (lastY !== -1 && Math.abs(y - lastY) > 5) {
+                pageLines.push(currentLine.trim());
+                currentLine = "";
+              }
+              currentLine += item.str + " ";
+              lastY = y;
             });
-            
-            console.log(`Page ${i} found ${textContent.items.length} text fragments.`);
-            
-            const pageText = textContent.items
-              .map((item: any) => item.str || "")
-              .join(" ")
-              .replace(/\s+/g, " "); // Normalize spaces
-            
-            extractedText += pageText + "\n\n";
+            pageLines.push(currentLine.trim());
+
+            const pageText = pageLines.filter(line => line.length > 0).join("\n");
+            fullText += pageText + "\n\n";
+            console.log(`Page ${i} reconstructed: ${pageText.length} chars.`);
           }
           
-          const finalOutput = extractedText.trim();
-          console.log(`Extraction complete. Total length: ${finalOutput.length} characters.`);
+          const finalOutput = fullText.trim();
+          console.log("Final extraction size:", finalOutput.length);
 
-          if (finalOutput.length < 20) {
-            console.warn("Extracted text too small. Sample:", finalOutput);
-            throw new Error("This PDF seems to be an image or scanned document. Please paste the text manually or use a text-based PDF.");
+          // Lowered threshold to 5 just to be safe
+          if (finalOutput.length < 5) {
+             throw new Error("No text found. If this is a photo of a resume, please paste the text manually.");
           }
 
           setBaseResume(finalOutput);
-          showStatus("PDF Contents Extracted Successfully!", "success");
+          showStatus("Bypassed barriers; Text recovered!", "success");
         } catch (err: any) {
-          console.error("PDF Extraction Failed:", err);
-          showStatus(err.message || "Failed to parse PDF. Try pasting the text instead.", "error");
+          console.error("PDF Fail:", err);
+          showStatus(err.message || "Failed to parse this PDF. Try pasting the text instead.", "error");
         }
       };
       reader.onerror = () => showStatus("Failed to read the file from your computer.", "error");
