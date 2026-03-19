@@ -62,7 +62,35 @@ export default function Home() {
       const savedLevel = localStorage.getItem("rezryt_draft_level");
       if (savedLevel) setLevel(savedLevel);
 
-      fetchCredits();
+      // Detect redirect back from Stripe checkout
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("success") === "true") {
+        const sessionId = params.get("session_id");
+        window.history.replaceState({}, "", "/");
+        const verifyPurchase = async () => {
+          try {
+            showStatus("Verifying your purchase...", "success");
+            const res = await fetch("/api/verify-purchase", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sessionId }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+              setUserCredits(9999);
+              setShowPaywall(false);
+              showStatus("🎉 Unlimited Access Activated! Welcome to Elevate Pro!", "success");
+            } else {
+              fetchCredits();
+            }
+          } catch {
+            fetchCredits();
+          }
+        };
+        verifyPurchase();
+      } else {
+        fetchCredits();
+      }
     }
 
     // Load HTML2PDF dynamically
