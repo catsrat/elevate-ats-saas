@@ -41,6 +41,7 @@ export default function Home() {
   const [editorValue, setEditorValue] = useState("");
   const [atsScore, setAtsScore] = useState(0);
   const [missingKeywords, setMissingKeywords] = useState<string[]>([]);
+  const [matchedKeywords, setMatchedKeywords] = useState<string[]>([]);
   const [coverLetter, setCoverLetter] = useState("");
   const [interviewQuestions, setInterviewQuestions] = useState("");
   
@@ -156,6 +157,7 @@ export default function Home() {
       setEditorValue(data.tailoredResume || "");
       setAtsScore(data.atsScore || 0);
       setMissingKeywords(data.missingKeywords || []);
+      setMatchedKeywords(data.matchedKeywords || []);
       setCoverLetter(data.coverLetter || "No cover letter data");
       setInterviewQuestions(data.interviewQuestions || "No prep data");
       
@@ -529,24 +531,36 @@ export default function Home() {
                        <h3>Match Score</h3>
                        <div 
                          className="circular-progress" 
-                         style={{background: `conic-gradient(var(--primary-accent) ${atsScore * 3.6}deg, rgba(255,255,255,0.05) 0deg)`}}
+                         style={{background: `conic-gradient(${atsScore >= 80 ? 'var(--success)' : atsScore >= 60 ? 'var(--primary-accent)' : '#f56565'} ${atsScore * 3.6}deg, rgba(255,255,255,0.05) 0deg)`}}
                        >
                          <div className="inner-circle">{atsScore}%</div>
                        </div>
                        <p className="score-label">
-                         {atsScore >= 80 ? "Excellent Match!" : atsScore >= 60 ? "Good Match" : "Needs Improvement"}
+                         {atsScore >= 80 ? "🏆 Excellent Match!" : atsScore >= 60 ? "✅ Good Match" : "⚠️ Needs Improvement"}
                        </p>
                      </div>
                      
+                     {matchedKeywords.length > 0 && (
+                       <div className="keywords-card glass-panel-inner">
+                         <h3 style={{color: 'var(--success)'}}>✅ Keywords Added ({matchedKeywords.length})</h3>
+                         <p className="subtitle">These high-value keywords from the JD were integrated into your resume.</p>
+                         <div className="keyword-tags">
+                           {matchedKeywords.map((kw, i) => (
+                             <span key={i} className="keyword-tag" style={{background: "rgba(72,187,120,0.12)", color: "#68d391", border: "1px solid rgba(72,187,120,0.25)"}}>{kw}</span>
+                           ))}
+                         </div>
+                       </div>
+                     )}
+
                      <div className="keywords-card glass-panel-inner">
-                       <h3>Missing Keywords</h3>
-                       <p className="subtitle">Consider adding these to your background or preparing to address them in an interview.</p>
+                       <h3 style={{color: missingKeywords.length === 0 ? 'var(--success)' : 'inherit'}}>❌ Missing Keywords</h3>
+                       <p className="subtitle">These keywords couldn't be naturally included — prepare to address them in interviews.</p>
                        <div className="keyword-tags">
                           {missingKeywords.length > 0 ? missingKeywords.map((kw, i) => (
                             <span key={i} className="keyword-tag">{kw}</span>
                           )) : (
-                            <span className="keyword-tag matched" style={{background: "rgba(72,187,120,0.1)", color: "var(--success)", border: "1px solid rgba(72, 187, 120, 0.2)"}}>
-                              Great job! You hit all major keywords.
+                            <span className="keyword-tag" style={{background: "rgba(72,187,120,0.1)", color: "var(--success)", border: "1px solid rgba(72, 187, 120, 0.2)"}}>
+                              🎉 All major keywords were integrated!
                             </span>
                           )}
                        </div>

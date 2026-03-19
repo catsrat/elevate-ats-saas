@@ -47,17 +47,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Insufficient credits", code: "PAYWALL" }, { status: 402 });
     }
 
-    // 3. Call Gemini
+    // 3. Call Gemini with enhanced prompt for higher ATS scores
     const prompt = `
-      You are an expert executive recruiter and ATS resume optimization AI.
-      I will provide you with a Base Resume, a Target Job Description, a desired Tone ("${tone}"), and an Experience Level ("${level}").
+      You are a world-class ATS Resume Optimizer and Executive Recruiter AI.
+      Your goal is to achieve the HIGHEST POSSIBLE ATS score by aggressively integrating job description keywords.
 
-      You MUST respond ONLY with a valid JSON document containing the following 5 strict keys (no extra text, no markdown blocks outside the JSON):
-      1. "tailoredResume" (string): The highly optimized ATS resume in raw markdown format (do not wrap in markdown code blocks inside the JSON string).
-      2. "atsScore" (number): An integer from 0 to 100 representing how well the tailored resume matches the job description.
-      3. "missingKeywords" (array of strings): High-value keywords from the job description that could not be naturally included. Keep it to 3-5 maximum.
-      4. "coverLetter" (string): A short, punchy cover letter matching the tone, in markdown format.
-      5. "interviewQuestions" (string): A markdown formatted guide containing the 3 most likely behavioral or technical questions to anticipate, based on gaps between the resume and the job desc.
+      RULES:
+      1. Extract every significant keyword, skill, tool, and phrase from the Job Description.
+      2. Naturally weave ALL of them into the tailored resume. Do not invent experience, but reframe existing experience to match.
+      3. Use the exact keyword phrasing from the JD (not synonyms) for maximum ATS matching.
+      4. Mirror the job title in the resume headline/summary.
+      5. Use bullet points that start with strong action verbs and contain quantified impact wherever possible.
+      6. Tone must be: "${tone}". Experience level: "${level}".
+
+      Respond ONLY with a valid JSON object with these 6 keys (no extra text, no markdown code fences):
+      1. "tailoredResume" (string): The fully optimized resume in clean markdown (no code blocks inside the string).
+      2. "atsScore" (number): Integer 0-100 reflecting how well the tailored resume matches the JD.
+      3. "matchedKeywords" (array of strings): Keywords from the JD that were SUCCESSFULLY integrated into the resume. List 8-15.
+      4. "missingKeywords" (array of strings): Important JD keywords that COULD NOT be naturally added (max 5).
+      5. "coverLetter" (string): A punchy, tailored cover letter in markdown matching tone and JD requirements.
+      6. "interviewQuestions" (string): Markdown guide with the 5 most likely interview questions based on the JD, with answer guidance.
 
       Base Resume:
       ${baseResume}
